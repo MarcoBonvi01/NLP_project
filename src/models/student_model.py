@@ -19,8 +19,7 @@ from transformers import (
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
 )
-from utils.extract_number_from_text import extract_final_number 
-
+from utils.extract_number_from_text import extract_answer, normalize_number, exact_match as gsm8k_exact_match
 
 @dataclass
 class StudentModelConfig:
@@ -84,33 +83,17 @@ class StudentModel:
     # ----------------------------
     # Target formatting
     # ----------------------------
-    def format_target_answer_only(self, answer: Union[str, int, float]) -> str:
-        # Produce target string for answer-only supervision
-        # Format the answer with prefix to match model expectations
+    def format_target(self, reasoning: str | None, answer: str) -> str:
+        """
+        Standard target:
+        - reasoning (opzionale)
+        - riga finale parsabile: 'Final: #### <answer>'
+        """
         ans = str(answer).strip()
-
-        # Try to extract final number from the answer text
-        extracted = extract_final_number(ans)
-
-        # Return the formatted string
-        return f"{self.config.answer_prefix}{extracted if extracted is not None else ans}"
-
-    def format_target_cot(self, reasoning: str, answer: Union[str, int, float]) -> str:
-        # Produce target string for CoT supervision
-        # Format the reasoning and answer with prefixes to match model expectations
-        
-        ans = str(answer).strip()
-    
-        # Try to extract final number from the answer text
-        extracted = extract_final_number(ans)
-
-        # Return the formatted string
-        ans_out = extracted if extracted is not None else ans
-
-        # Strip leading and trailing whitespace
-        reasoning = (reasoning or "").strip()
-
-        return f"{self.config.reasoning_prefix}{reasoning}\n{self.config.answer_prefix}{ans_out}"
+        if reasoning and reasoning.strip():
+            r = reasoning.strip()
+            return f"Reasoning:\n{r}\n\nFinal: #### {ans}"
+        return f"Final: #### {ans}"
 
     # ----------------------------
     # Dataset building
@@ -144,14 +127,14 @@ class StudentModel:
 
             # Format targets based on supervision type
             if supervision == "answer":
-                # answer may be missing in some processed formats
-                targets = [self.format_target_answer_only(a) for a in batch["answer"]]
+                # in that case we are interested only in answer 
+                targets = [self.format_target(None, a) for a in batch["answer"]]
             elif supervision == "cot":
-                # reasoning may be missing in some processed formats
+                # in that case we are interested also in chain of tought
                 reasons = batch.get("reasoning", [""] * len(batch["question"]))
 
                 # answer may be missing in some processed formats
-                targets = [self.format_target_cot(r, a) for r, a in zip(reasons, batch["answer"])]
+                targets = [self.format_target(r, a) for r, a in zip(reasons, batch["answer"])]
             else:
                 raise ValueError("supervision must be 'answer' or 'cot'")
 
@@ -277,10 +260,6 @@ class StudentModel:
         # Decode outputs
         return self.tokenizer.batch_decode(out, skip_special_tokens=True)
 
-    @staticmethod
-    def exact_match(pred: Optional[str], gold: Optional[str]) -> int:
-        # Represent the standard metric EC (exact match) for GSM8K
-        return int((pred is not None) and (gold is not None) and (str(pred).strip() == str(gold).strip()))
 
     def evaluate_exact_match(
         self,
@@ -301,17 +280,17 @@ class StudentModel:
         questions = [ex["question"] for ex in raw_examples]
 
         # Extract gold answers that are final numbers only
-        gold = [extract_final_number(str(ex.get("answer", ""))) for ex in raw_examples]
+        gold = [normalize_number(str(ex.get("answer", ""))) for ex in raw_examples]
 
         # Generate predictions
         generations = self.generate(questions, max_new_tokens=max_new_tokens, num_beams=num_beams)
 
         # Extract final numbers from predictions
-        pred = [extract_final_number(g) for g in generations]
+        pred = [extract_answer(g) for g in generations]
 
         # Compute exact match
-        em = sum(self.exact_match(p, g) for p, g in zip(pred, gold)) / max(1, len(gold))
-
+        em = sum(int(gsm8k_exact_match(gen, ga)) for gen, ga in zip(generations, gold)) / max(1, len(gold))
+        
         return {
             "n": len(raw_examples),
             "exact_match": em,
