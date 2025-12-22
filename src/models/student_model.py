@@ -1,0 +1,335 @@
+"""
+StudentModel: small seq2seq model wrapper for GSM8K distillation. 
+
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+
+import json
+import torch
+from datasets import Dataset
+from transformers import (
+    AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+    DataCollatorForSeq2Seq,
+    Seq2SeqTrainer,
+    Seq2SeqTrainingArguments,
+)
+from src.utils.extract_number_from_text import extract_final_number 
+
+
+@dataclass
+class StudentModelConfig:
+    model_name: str = "google/flan-t5-small"
+
+    # Model hyperparameters
+    max_source_length: int = 256
+    max_target_length: int = 256
+    
+    # Prompt templates (customize as needed)
+    input_prefix: str = "Solve the problem:\n"
+
+    # For answer-only training, we format target as: "Answer: <num>"
+    answer_prefix: str = "Answer: "
+
+    # For CoT distillation, we format target as:
+    # "Reasoning:\n<steps>\nAnswer: <num>"
+    reasoning_prefix: str = "Reasoning:\n"
+
+class StudentModel:
+    def __init__(self, config: Optional[StudentModelConfig] = None, device: Optional[str] = None):
+        self.config = config or StudentModelConfig()
+        # Load the tokenizer
+        # the objective of the tokernizer is to convert text into tokens that the model can understand
+        self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
+
+        # Load the model
+        # the model is a sequence-to-sequence model that generates text based on input sequences
+        # utilize a pre-trained model from HuggingFace
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model_name)
+
+        # Set device
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.model.to(self.device)
+
+    # ----------------------------
+    # Data loading / formatting
+    # ----------------------------
+    @staticmethod
+    def load_processed_json(path: Union[str, Path]) -> List[Dict[str, Any]]:
+        # Load a JSON file containing a list of examples and return as list of dicts
+        path = Path(path)
+
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Check if data is a list
+        if not isinstance(data, list):
+            raise ValueError(f"Expected a JSON list at {path}, got {type(data)}")
+        
+        return data
+
+    # ----------------------------
+    # Data processing
+    # ----------------------------
+    def format_input(self, question: str) -> str:
+        # Produce input string for the model
+        # Format the input question with prefix to match model expectations
+        return f"{self.config.input_prefix}{question.strip()}"
+
+    # ----------------------------
+    # Target formatting
+    # ----------------------------
+    def format_target_answer_only(self, answer: Union[str, int, float]) -> str:
+        # Produce target string for answer-only supervision
+        # Format the answer with prefix to match model expectations
+        ans = str(answer).strip()
+
+        # Try to extract final number from the answer text
+        extracted = extract_final_number(ans)
+
+        # Return the formatted string
+        return f"{self.config.answer_prefix}{extracted if extracted is not None else ans}"
+
+    def format_target_cot(self, reasoning: str, answer: Union[str, int, float]) -> str:
+        # Produce target string for CoT supervision
+        # Format the reasoning and answer with prefixes to match model expectations
+        
+        ans = str(answer).strip()
+    
+        # Try to extract final number from the answer text
+        extracted = extract_final_number(ans)
+
+        # Return the formatted string
+        ans_out = extracted if extracted is not None else ans
+
+        # Strip leading and trailing whitespace
+        reasoning = (reasoning or "").strip()
+
+        return f"{self.config.reasoning_prefix}{reasoning}\n{self.config.answer_prefix}{ans_out}"
+
+    # ----------------------------
+    # Dataset building
+    # ----------------------------
+    def build_hf_dataset(
+        self,
+        examples: List[Dict[str, Any]],
+        supervision: str = "cot",  # "cot" or "answer"
+        limit: Optional[int] = None,
+        shuffle: bool = False,
+        seed: int = 42,
+    ) -> Dataset:
+        # Build a HuggingFace Dataset with tokenized inputs and targets
+        # Tokenization is done using the model's tokenizer
+        # supervision: "cot" for chain-of-thought, "answer" for answer-only
+
+
+        # Apply limit
+        if limit is not None:
+            examples = examples[:limit]
+
+        # Create Dataset
+        ds = Dataset.from_list(examples)
+
+        # Shuffle if needed
+        if shuffle:
+            ds = ds.shuffle(seed=seed)
+
+        def _map(batch: Dict[str, List[Any]]) -> Dict[str, Any]:
+            inputs = [self.format_input(q) for q in batch["question"]]
+
+            # Format targets based on supervision type
+            if supervision == "answer":
+                # answer may be missing in some processed formats
+                targets = [self.format_target_answer_only(a) for a in batch["answer"]]
+            elif supervision == "cot":
+                # reasoning may be missing in some processed formats
+                reasons = batch.get("reasoning", [""] * len(batch["question"]))
+
+                # answer may be missing in some processed formats
+                targets = [self.format_target_cot(r, a) for r, a in zip(reasons, batch["answer"])]
+            else:
+                raise ValueError("supervision must be 'answer' or 'cot'")
+
+            # Tokenize inputs
+            model_inputs = self.tokenizer(
+                inputs,
+                max_length=self.config.max_source_length,
+                truncation=True,
+            )
+
+            # Tokenize targets
+            with self.tokenizer.as_target_tokenizer():
+                labels = self.tokenizer(
+                    targets,
+                    max_length=self.config.max_target_length,
+                    truncation=True,
+                )
+
+            # Add labels to model inputs
+            model_inputs["labels"] = labels["input_ids"]
+
+            # Return model inputs
+            return model_inputs
+
+        # Remove original columns to avoid trainer complaints; keep only tensors
+        tokenized = ds.map(_map, batched=True, remove_columns=ds.column_names)
+
+        # Return tokenized dataset
+        return tokenized
+
+    # ----------------------------
+    # Training / evaluation
+    # ----------------------------
+    def train(
+        self,
+        train_dataset: Dataset,
+        eval_dataset: Optional[Dataset] = None,
+        output_dir: Union[str, Path] = "outputs/student_model",
+        *,
+        learning_rate: float = 5e-5,
+        per_device_train_batch_size: int = 8,
+        per_device_eval_batch_size: int = 8,
+        num_train_epochs: float = 1.0,
+        weight_decay: float = 0.0,
+        warmup_steps: int = 0,
+        logging_steps: int = 50,
+        eval_steps: int = 200,
+        save_steps: int = 200,
+        predict_with_generate: bool = True,
+        fp16: bool = False,
+        seed: int = 42,
+    ) -> Seq2SeqTrainer:
+        # Train the model using HuggingFace's Seq2SeqTrainer
+        # Set Seq2SeqTrainingArguments + DataCollatorForSeq2Seq + Seq2SeqTrainer and then launch training by trainer.train()
+
+        # Prepare output directory
+        output_dir = str(output_dir)
+
+        # Training arguments
+        args = Seq2SeqTrainingArguments(
+            output_dir=output_dir, # where to save model checkpoints and logs
+            learning_rate=learning_rate, # learning rate for optimizer
+            per_device_train_batch_size=per_device_train_batch_size, # batch size for training
+            per_device_eval_batch_size=per_device_eval_batch_size, # batch size for evaluation
+            num_train_epochs=num_train_epochs, # number of training epochs
+            weight_decay=weight_decay, # weight decay for optimizer
+            warmup_steps=warmup_steps, # number of warmup steps for learning rate scheduler
+            logging_steps=logging_steps, # log training info every N steps
+            eval_strategy="steps" if eval_dataset is not None else "no", # evaluate every N steps if eval dataset is provided
+            eval_steps=eval_steps if eval_dataset is not None else None, # evaluation frequency
+            save_strategy="steps", # save model checkpoints every N steps
+            save_steps=save_steps, # checkpoint saving frequency
+            predict_with_generate=predict_with_generate, # use generate() during evaluation
+            fp16=fp16 and torch.cuda.is_available(), # use mixed precision if available and requested
+            seed=seed, # random seed for reproducibility
+            report_to=[],  # keep notebooks clean by default
+        )
+
+        # Data collator for seq2seq
+        data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model)
+
+        # Seq2SeqTrainer
+        trainer = Seq2SeqTrainer(
+            model=self.model,
+            args=args,
+            train_dataset=train_dataset, # training dataset
+            eval_dataset=eval_dataset, # evaluation dataset
+            data_collator=data_collator, # data collator for batching
+            tokenizer=self.tokenizer, # tokenizer for decoding during evaluation
+        )
+
+        # Start training
+        trainer.train()
+
+        # Return trainer object
+        return trainer
+
+    @torch.inference_mode()
+    def generate(self, questions: List[str], max_new_tokens: int = 128, num_beams: int = 1) -> List[str]:
+        # Generate outputs for a list of input questions
+
+        self.model.eval()
+        
+        # Format inputs
+        inputs = [self.format_input(q) for q in questions]
+
+        # Tokenize inputs
+        enc = self.tokenizer(
+            inputs,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.config.max_source_length,
+        ).to(self.device)
+
+        # Generate outputs
+        out = self.model.generate(
+            **enc,
+            max_new_tokens=max_new_tokens,
+            num_beams=num_beams,
+        )
+
+        # Decode outputs
+        return self.tokenizer.batch_decode(out, skip_special_tokens=True)
+
+    @staticmethod
+    def exact_match(pred: Optional[str], gold: Optional[str]) -> int:
+        # Represent the standard metric EC (exact match) for GSM8K
+        return int((pred is not None) and (gold is not None) and (str(pred).strip() == str(gold).strip()))
+
+    def evaluate_exact_match(
+        self,
+        raw_examples: List[Dict[str, Any]],
+        *,
+        max_new_tokens: int = 128,
+        num_beams: int = 1,
+        limit: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        # Evaluate exact match (EM) on a list of raw examples
+        # raw_examples: list of dicts with "question" and "answer" fields
+        # Returns a dict with number of examples, EM score, and some sample predictions 
+
+        if limit is not None:
+            raw_examples = raw_examples[:limit]
+
+        # Extract questions
+        questions = [ex["question"] for ex in raw_examples]
+
+        # Extract gold answers that are final numbers only
+        gold = [extract_final_number(str(ex.get("answer", ""))) for ex in raw_examples]
+
+        # Generate predictions
+        generations = self.generate(questions, max_new_tokens=max_new_tokens, num_beams=num_beams)
+
+        # Extract final numbers from predictions
+        pred = [extract_final_number(g) for g in generations]
+
+        # Compute exact match
+        em = sum(self.exact_match(p, g) for p, g in zip(pred, gold)) / max(1, len(gold))
+
+        return {
+            "n": len(raw_examples),
+            "exact_match": em,
+            "pred_examples": list(zip(questions[:5], generations[:5], pred[:5], gold[:5])),
+        }
+
+    # ----------------------------
+    # Save / load
+    # ----------------------------
+    def save(self, path: Union[str, Path]) -> None:
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        self.model.save_pretrained(str(path))
+        self.tokenizer.save_pretrained(str(path))
+
+    @classmethod
+    def load(cls, path: Union[str, Path], device: Optional[str] = None) -> "StudentModel":
+        path = Path(path)
+        config = StudentModelConfig(model_name=str(path))
+        obj = cls(config=config, device=device)
+        return obj

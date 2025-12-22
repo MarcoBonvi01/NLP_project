@@ -16,7 +16,7 @@ class GSM8KExample:
     index: int  # Example index
 
 
-class GSM8KDownloader:
+class GSM8KDatasetProcessor:
     def __init__(self, base_path: str = "gsm8k-distillation/data/raw"):
         self.output_path = Path(base_path)
         self.output_path.mkdir(parents=True, exist_ok=True)
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
-    processor = GSM8KDownloader()
+    processor = GSM8KDatasetProcessor()
     
     if args.verify:
         # In that case we don't need to download anything because we just want to verify the format
