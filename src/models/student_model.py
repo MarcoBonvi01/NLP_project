@@ -153,8 +153,13 @@ class StudentModel:
                     truncation=True,
                 )
 
+            # Replace pad token id's in labels by -100 to ignore in loss computation
+            label_ids = labels["input_ids"]
+            pad_id = self.tokenizer.pad_token_id
+            label_ids = [[(t if t != pad_id else -100) for t in seq] for seq in label_ids]
+            
             # Add labels to model inputs
-            model_inputs["labels"] = labels["input_ids"]
+            model_inputs["labels"] = label_ids
 
             # Return model inputs
             return model_inputs
