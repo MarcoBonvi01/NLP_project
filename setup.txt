@@ -1,0 +1,1 @@
+pip install -U transformers accelerate evaluate sentencepiece datasets
