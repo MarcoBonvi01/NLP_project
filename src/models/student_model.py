@@ -19,7 +19,7 @@ from transformers import (
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
 )
-from src.utils.extract_number_from_text import extract_final_number 
+from utils.extract_number_from_text import extract_final_number 
 
 
 @dataclass
