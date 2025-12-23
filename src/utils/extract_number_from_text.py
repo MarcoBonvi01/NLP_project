@@ -10,38 +10,50 @@ def normalize_number(s: Optional[str]) -> Optional[str]:
     GSM8K answers are typically integers, but keep float support.
     Returns the number as string, or None if not found.
     """
-    if s is None:
-        return None
-    s = s.strip().replace("€", "").replace("$", "")
-    s = s.replace(",", ".").strip().strip(".")
     if not s:
-        return None
+        return ""
+    
+    # Remove commas and spaces
+    cleaned = re.sub(r'[,\s]', '', str(s))
+
     try:
-        v = float(s)
-        if v.is_integer():
-            return str(int(v))
-        return str(v)
+        # Convert to float and then to string to normalize
+        return str(float(cleaned))
     except:
-        return None
+        return cleaned
     
 
 def extract_answer(text: Optional[str]) -> Optional[str]:
     if not text:
         return None
+    
+    text = text.strip()
 
-    # 1) priorità assoluta: ultima occorrenza dopo ####
-    hits = _HASH_RE.findall(text)
-    if hits:
-        return normalize_number(hits[-1])
-
-    # 2) fallback: ultimo numero nel testo
-    nums = _NUM_RE.findall(text)
-    if nums:
-        return normalize_number(nums[-1])
-
-    return None
+    # Pattern 1: "The answer is X"
+    match = re.search(r'(?:the answer is|answer:)\s*(-?[\d,]+\.?\d*)', text, re.IGNORECASE)
+    if match:
+        return normalize_number(match.group(1))
+    
+    # Pattern 2: "#### X" (formato GSM8K originale)
+    match = re.search(r'####\s*(-?[\d,]+\.?\d*)', text)
+    if match:
+        return normalize_number(match.group(1))
+    
+    # Pattern 3: Ultimo numero nel testo
+    numbers = re.findall(r'-?[\d,]+\.?\d*', text)
+    if numbers:
+        return normalize_number(numbers[-1])
+    
+    return ""
 
 def exact_match(pred_text: Optional[str], gold_answer: Optional[str]) -> bool:
-    p = extract_answer(pred_text)
-    g = normalize_number(gold_answer)
-    return (p is not None) and (g is not None) and (p == g)
+    pred_norm = normalize_number(pred_text)
+    gold_norm = normalize_number(gold_answer)
+
+    if not pred_norm or not gold_norm:
+        return False
+    
+    try:
+        return float(pred_norm) == float(gold_norm)
+    except:
+        return pred_norm == gold_norm
