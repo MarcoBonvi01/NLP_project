@@ -1,7 +1,7 @@
 from typing import Optional
 import re
 
-_HASH_RE = re.compile(r"####\s*([-+]?\d+(?:[.,]\d+)?)")
+_HASH_RE = re.compile(r"\s*([-+]?\d+(?:[.,]\d+)?)")
 _NUM_RE  = re.compile(r"([-+]?\d+(?:[.,]\d+)?)")
 
 def normalize_number(s: Optional[str]) -> Optional[str]:
@@ -30,12 +30,12 @@ def extract_answer(text: Optional[str]) -> Optional[str]:
     text = text.strip()
 
     # Pattern 1: "The answer is X"
-    match = re.search(r'(?:the answer is|answer:)\s*(-?[\d,]+\.?\d*)', text, re.IGNORECASE)
+    match = re.search(r'(?:Final answer:)\s*(-?[\d,]+\.?\d*)', text, re.IGNORECASE)
     if match:
         return normalize_number(match.group(1))
     
-    # Pattern 2: "#### X" (formato GSM8K originale)
-    match = re.search(r'####\s*(-?[\d,]+\.?\d*)', text)
+    # Pattern 2: "X" (formato GSM8K originale)
+    match = re.search(r'\s*(-?[\d,]+\.?\d*)', text)
     if match:
         return normalize_number(match.group(1))
     

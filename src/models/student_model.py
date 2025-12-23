@@ -87,13 +87,13 @@ class StudentModel:
         """
         Standard target:
         - reasoning (opzionale)
-        - riga finale parsabile: 'Final: #### <answer>'
+        - riga finale parsabile: 'Final answer: <answer>'
         """
         ans = str(answer).strip()
         if reasoning and reasoning.strip():
             r = reasoning.strip()
-            return f"Reasoning:\n{r}\n\nFinal: #### {ans}"
-        return f"Final: #### {ans}"
+            return f"Reasoning:\n{r}\n\nFinal answer: {ans}"
+        return f"Final answer: {ans}"
 
     # ----------------------------
     # Dataset building
