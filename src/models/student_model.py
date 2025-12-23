@@ -20,23 +20,24 @@ from transformers import (
     Seq2SeqTrainingArguments,
 )
 from utils.extract_number_from_text import extract_answer, exact_match
+from utils.text_processing import clean_reasoning
+from utils.compute_metrics import compute_metrics
 
 @dataclass
 class StudentModelConfig:
     model_name: str = "google/flan-t5-base"
 
     # Model hyperparameters
-    max_source_length: int = 256
-    max_target_length: int = 256
+    max_source_length: int = 512
+    max_target_length: int = 768
     
     # Prompt templates (customize as needed)
     input_prefix: str = "Solve the problem:\n"
 
     # For answer-only training, we format target as: "Answer: <num>"
-    answer_prefix: str = "Answer: "
+    answer_prefix: str = "Final answer:"
 
     # For CoT distillation, we format target as:
-    # "Reasoning:\n<steps>\nAnswer: <num>"
     reasoning_prefix: str = "Reasoning:\n"
 
 class StudentModel:
@@ -92,8 +93,9 @@ class StudentModel:
         ans = str(answer).strip()
         if reasoning and reasoning.strip():
             r = reasoning.strip()
-            return f"Reasoning:\n{r}\n\nFinal answer: {ans}"
-        return f"Final answer: {ans}"
+            return f"{self.config.reasoning_prefix}{r}\n\n{self.config.answer_prefix}{ans}"
+        else:
+            return f"{self.config.answer_prefix}{ans}"
 
     # ----------------------------
     # Dataset building
@@ -131,7 +133,7 @@ class StudentModel:
                 targets = [self.format_target(None, a) for a in batch["answer"]]
             elif supervision == "cot":
                 # in that case we are interested also in chain of tought
-                reasons = batch.get("reasoning", [""] * len(batch["question"]))
+                reasons = [clean_reasoning(x) for x in batch.get("reasoning", [""] * len(batch["question"]))]
 
                 # answer may be missing in some processed formats
                 targets = [self.format_target(r, a) for r, a in zip(reasons, batch["answer"])]
@@ -183,14 +185,18 @@ class StudentModel:
         per_device_train_batch_size: int = 8,
         per_device_eval_batch_size: int = 8,
         num_train_epochs: float = 1.0,
-        weight_decay: float = 0.0,
-        warmup_steps: int = 0,
+        weight_decay: float = 0.01,
+        warmup_ratio: float = 0.03,
+        gradient_accumulation_steps: int = 4,
+        label_smoothing_factor: float = 0.1,
         logging_steps: int = 50,
         eval_steps: int = 200,
         save_steps: int = 200,
         predict_with_generate: bool = True,
         fp16: bool = False,
         seed: int = 42,
+        generation_max_new_tokens: int = 256,
+        generation_num_beams: int = 4,
     ) -> Seq2SeqTrainer:
         # Train the model using HuggingFace's Seq2SeqTrainer
         # Set Seq2SeqTrainingArguments + DataCollatorForSeq2Seq + Seq2SeqTrainer and then launch training by trainer.train()
@@ -206,7 +212,7 @@ class StudentModel:
             per_device_eval_batch_size=per_device_eval_batch_size, # batch size for evaluation
             num_train_epochs=num_train_epochs, # number of training epochs
             weight_decay=weight_decay, # weight decay for optimizer
-            warmup_steps=warmup_steps, # number of warmup steps for learning rate scheduler
+            warmup_ratio=warmup_ratio, # warmup ratio for learning rate scheduler
             logging_steps=logging_steps, # log training info every N steps
             eval_strategy="steps" if eval_dataset is not None else "no", # evaluate every N steps if eval dataset is provided
             eval_steps=eval_steps if eval_dataset is not None else None, # evaluation frequency
@@ -216,6 +222,13 @@ class StudentModel:
             fp16=fp16 and torch.cuda.is_available(), # use mixed precision if available and requested
             seed=seed, # random seed for reproducibility
             report_to=[],  # keep notebooks clean by default
+            load_best_model_at_end=True,
+            metric_for_best_model="exact_match",
+            greater_is_better=True,
+            label_smoothing_factor=label_smoothing_factor,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+            generation_max_new_tokens=generation_max_new_tokens,
+            generation_num_beams=generation_num_beams
         )
 
         # Data collator for seq2seq
@@ -229,6 +242,7 @@ class StudentModel:
             eval_dataset=eval_dataset, # evaluation dataset
             data_collator=data_collator, # data collator for batching
             tokenizer=self.tokenizer, # tokenizer for decoding during evaluation
+            compute_metrics=compute_metrics,
         )
 
         # Start training
