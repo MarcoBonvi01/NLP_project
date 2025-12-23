@@ -195,8 +195,6 @@ class StudentModel:
         predict_with_generate: bool = True,
         fp16: bool = False,
         seed: int = 42,
-        generation_max_new_tokens: int = 256,
-        generation_num_beams: int = 4,
     ) -> Seq2SeqTrainer:
         # Train the model using HuggingFace's Seq2SeqTrainer
         # Set Seq2SeqTrainingArguments + DataCollatorForSeq2Seq + Seq2SeqTrainer and then launch training by trainer.train()
@@ -227,8 +225,6 @@ class StudentModel:
             greater_is_better=True,
             label_smoothing_factor=label_smoothing_factor,
             gradient_accumulation_steps=gradient_accumulation_steps,
-            generation_max_new_tokens=generation_max_new_tokens,
-            generation_num_beams=generation_num_beams
         )
 
         # Data collator for seq2seq
