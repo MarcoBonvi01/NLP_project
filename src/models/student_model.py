@@ -23,7 +23,7 @@ from utils.extract_number_from_text import extract_answer, normalize_number, exa
 
 @dataclass
 class StudentModelConfig:
-    model_name: str = "google/flan-t5-small"
+    model_name: str = "google/flan-t5-base"
 
     # Model hyperparameters
     max_source_length: int = 256
