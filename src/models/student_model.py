@@ -19,7 +19,7 @@ from transformers import (
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
 )
-from utils.extract_number_from_text import extract_answer, normalize_number, exact_match as gsm8k_exact_match
+from utils.extract_number_from_text import extract_answer, exact_match
 
 @dataclass
 class StudentModelConfig:
@@ -285,7 +285,7 @@ class StudentModel:
         questions = [ex["question"] for ex in raw_examples]
 
         # Extract gold answers that are final numbers only
-        gold = [normalize_number(str(ex.get("answer", ""))) for ex in raw_examples]
+        gold = [extract_answer(str(ex.get("answer", ""))) for ex in raw_examples]
 
         # Generate predictions
         generations = self.generate(questions, max_new_tokens=max_new_tokens, num_beams=num_beams)
@@ -294,7 +294,7 @@ class StudentModel:
         pred = [extract_answer(g) for g in generations]
 
         # Compute exact match
-        em = sum(int(gsm8k_exact_match(gen, ga)) for gen, ga in zip(generations, gold)) / max(1, len(gold))
+        em = sum(int(exact_match(pred, ga)) for pred, ga in zip(pred, gold)) / max(1, len(gold))
         
         return {
             "n": len(raw_examples),
