@@ -6,7 +6,7 @@ from dataclasses import dataclass, asdict
 import re
 from src.text.cleaning import clean_reasoning
 from src.text.numeric import normalize_number
-
+from src.data.gsm8k_types import GSM8KExample 
 
 class GSM8KDatasetLoader:
 
