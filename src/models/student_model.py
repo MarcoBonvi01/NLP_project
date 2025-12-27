@@ -51,9 +51,7 @@ class StudentModel:
         # Load the model
         # the model is a sequence-to-sequence model that generates text based on input sequences
         # utilize a pre-trained model from HuggingFace
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model_name, 
-                                                        device_map="auto", 
-                                                        max_memory={0: "40GiB", "cpu": "64GiB"})
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model_name)
 
         # Set device
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -220,10 +218,8 @@ class StudentModel:
             eval_strategy="steps" if eval_dataset is not None else "no", # evaluate every N steps if eval dataset is provided
             eval_steps=eval_steps if eval_dataset is not None else None, # evaluation frequency
             
-            
             gradient_checkpointing=gradient_checkpointing, # enable gradient checkpointing to save memory
-            dataloader_pin_memory=False,  # avoid potential issues on some systems
-
+            
             # DISK CONTROL
             save_strategy="steps", # save model checkpoints every N steps
             save_steps=save_steps, # checkpoint saving frequency
@@ -239,9 +235,9 @@ class StudentModel:
             
 
             # VRAM CONTROL
-            fp16=fp16 and torch.cuda.is_available(),
-            bf16=bf16 and torch.cuda.is_available(),  # se supportato dalla GPU
-            predict_with_generate=predict_with_generate,
+            fp16=fp16 and torch.cuda.is_available(), # enable fp16 if supported by GPU
+            bf16=bf16 and torch.cuda.is_available(),  # enable bf16 if supported by GPU
+            predict_with_generate=predict_with_generate, # enable generation during evaluation
         )
 
         # Data collator for seq2seq
@@ -276,7 +272,7 @@ class StudentModel:
         # Tokenize inputs
         enc = self.tokenizer(
             inputs,
-            return_tensors="pt",
+            return_tensors="pt", # return as PyTorch tensors
             padding=True,
             truncation=True,
             max_length=self.config.max_source_length,
