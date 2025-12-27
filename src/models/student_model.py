@@ -19,10 +19,10 @@ from transformers import (
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
 )
-from utils.extract_number_from_text import extract_answer, exact_match
-from utils.text_processing import clean_reasoning
-from utils.compute_metrics import compute_metrics
 from functools import partial
+from src.text.cleaning import clean_reasoning
+from src.text.answer_parsing import extract_final_answer
+from src.metrics.gsm8k_metrics import compute_gsm8k_metrics, exact_match
 
 @dataclass
 class StudentModelConfig:
@@ -36,7 +36,7 @@ class StudentModelConfig:
     input_prefix: str = "Solve the problem:\n"
 
     # For answer-only training, we format target as: "Answer: <num>"
-    answer_prefix: str = "Final answer:"
+    answer_prefix: str = "Final answer: "
 
     # For CoT distillation, we format target as:
     reasoning_prefix: str = "Reasoning:\n"
@@ -239,7 +239,7 @@ class StudentModel:
             eval_dataset=eval_dataset, # evaluation dataset
             data_collator=data_collator, # data collator for batching
             tokenizer=self.tokenizer, # tokenizer for decoding during evaluation
-            compute_metrics=partial(compute_metrics, tokenizer=self.tokenizer)
+            compute_metrics=partial(compute_gsm8k_metrics, tokenizer=self.tokenizer)
         )
 
         # Start training
@@ -296,13 +296,13 @@ class StudentModel:
         questions = [ex["question"] for ex in raw_examples]
 
         # Extract gold answers that are final numbers only
-        gold = [extract_answer(str(ex.get("answer", ""))) for ex in raw_examples]
+        gold = [extract_final_answer(str(ex.get("answer", ""))) for ex in raw_examples]
 
         # Generate predictions
         generations = self.generate(questions, max_new_tokens=max_new_tokens, num_beams=num_beams)
 
         # Extract final numbers from predictions
-        pred = [extract_answer(g) for g in generations]
+        pred = [extract_final_answer(g) for g in generations]
 
         # Compute exact match
         em = sum(int(exact_match(pred, ga)) for pred, ga in zip(pred, gold)) / max(1, len(gold))
@@ -310,7 +310,7 @@ class StudentModel:
         return {
             "n": len(raw_examples),
             "exact_match": em,
-            "pred_examples": list(zip(questions[:5], generations[:5], pred[:5], gold[:5])),
+            "pred_examples": list(zip(questions[:5], generations[:5], pred[:5], gold[:5]))
         }
 
     # ----------------------------

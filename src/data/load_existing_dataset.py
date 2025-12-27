@@ -1,20 +1,10 @@
 from datasets import load_dataset
 import json
 from pathlib import Path
-from typing import List, Dict
-from dataclasses import dataclass, asdict
+from dataclasses import  asdict
 import statistics
 import argparse
-
-@dataclass
-class GSM8KExample:
-    """ Single GSM8K example with Chain-of-Thought """
-    question: str
-    reasoning: str  # Chain-of-Thought steps
-    answer: str  # Final numerical answer
-    split: str # Dataset split (train/test/val)
-    index: int  # Example index
-
+from src.data.gsm8k_types import GSM8KExample 
 
 class GSM8KDatasetProcessor:
     def __init__(self, base_path: str = "gsm8k-distillation/data/raw"):
