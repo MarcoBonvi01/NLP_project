@@ -1,13 +1,14 @@
 import re
 
 def extract_after_delim(text: str) -> str:
-    # prende l'ultima occorrenza di ####
-    parts = text.split("####")
-    if len(parts) >= 2:
-        return parts[-1].strip()
-    # fallback: ultima cifra in stringa
-    m = re.findall(r"-?\d+\.?\d*", text)
-    return m[-1] if m else ""
+    # primary: GSM8K delimiter
+    if "####" in text:
+        tail = text.split("####")[-1]
+        return re.sub(r"[^\d\.-]", "", tail).strip()
+
+    # fallback: last number in text
+    nums = re.findall(r"-?\d+(?:\.\d+)?", text)
+    return nums[-1] if nums else ""
 
 def compute_metrics(eval_pred, tokenizer):
     preds, labels = eval_pred

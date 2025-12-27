@@ -22,6 +22,7 @@ from transformers import (
 from utils.extract_number_from_text import extract_answer, exact_match
 from utils.text_processing import clean_reasoning
 from utils.compute_metrics import compute_metrics
+from functools import partial
 
 @dataclass
 class StudentModelConfig:
@@ -238,7 +239,7 @@ class StudentModel:
             eval_dataset=eval_dataset, # evaluation dataset
             data_collator=data_collator, # data collator for batching
             tokenizer=self.tokenizer, # tokenizer for decoding during evaluation
-            compute_metrics=compute_metrics,
+            compute_metrics=partial(compute_metrics, tokenizer=self.tokenizer)
         )
 
         # Start training
