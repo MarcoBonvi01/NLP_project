@@ -52,7 +52,6 @@ class StudentModel:
         # the model is a sequence-to-sequence model that generates text based on input sequences
         # utilize a pre-trained model from HuggingFace
         self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model_name, 
-                                                        dtype=torch.float16,
                                                         device_map="auto", 
                                                         max_memory={0: "40GiB", "cpu": "64GiB"})
 
