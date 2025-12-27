@@ -51,7 +51,10 @@ class StudentModel:
         # Load the model
         # the model is a sequence-to-sequence model that generates text based on input sequences
         # utilize a pre-trained model from HuggingFace
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model_name)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model_name, 
+                                                        torch_dtype=torch.float16,
+                                                        device_map="auto", 
+                                                        max_memory={0: "40GiB", "cpu": "64GiB"})
 
         # Set device
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -183,17 +186,19 @@ class StudentModel:
         output_dir: Union[str, Path] = "outputs/student_model",
         *,
         learning_rate: float = 5e-5,
-        per_device_train_batch_size: int = 8,
+        per_device_train_batch_size: int = 2,
         per_device_eval_batch_size: int = 8,
+        gradient_accumulation_steps: int = 8,
+        gradient_checkpointing: bool = True,
+        optim="paged_adamw_8bit",
         num_train_epochs: float = 1.0,
         weight_decay: float = 0.01,
         warmup_ratio: float = 0.03,
-        gradient_accumulation_steps: int = 4,
         label_smoothing_factor: float = 0.1,
         logging_steps: int = 50,
         eval_steps: int = 200,
         save_steps: int = 200,
-        predict_with_generate: bool = False,
+        predict_with_generate: bool = True,
         fp16: bool = True,
         bf16: bool = False,
         seed: int = 42,
@@ -217,6 +222,10 @@ class StudentModel:
             eval_strategy="steps" if eval_dataset is not None else "no", # evaluate every N steps if eval dataset is provided
             eval_steps=eval_steps if eval_dataset is not None else None, # evaluation frequency
             
+            optimizer=optim, # optimizer type
+            gradient_checkpointing=gradient_checkpointing, # enable gradient checkpointing to save memory
+            dataloader_pin_memory=False,  # avoid potential issues on some systems
+
             # DISK CONTROL
             save_strategy="steps", # save model checkpoints every N steps
             save_steps=save_steps, # checkpoint saving frequency
