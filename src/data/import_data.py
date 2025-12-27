@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from typing import List, Dict, Optional
 from dataclasses import dataclass, asdict
+import re
 
 
 @dataclass
@@ -88,16 +89,38 @@ class GSM8KDatasetLoader:
         except Exception as e:
             print(f"Warning: Error parsing example {index}: {e}")
             return None
+        
+
     
     def save_processed_dataset(self, examples: List[GSM8KExample], output_path: Path):
         """Save processed examples to JSON"""
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        payload = []
+        for ex in examples:
+            d = asdict(ex)
+
+            if "reasoning" in d and isinstance(d["reasoning"], str):
+                d["reasoning"] = self._clean_reasoning(d["reasoning"])
+
+            payload.append(d)
         
         with open(output_file, 'w') as f:
-            json.dump([asdict(ex) for ex in examples], f, indent=2)
+            json.dump(payload, f, indent=2)
         
         print(f"Saved to {output_path}")
+    
+    def _clean_reasoning(self, text: str,) -> str:
+        """
+        strategy: remove everything between <<...>> but keeping the resulting value
+        Example: $<<12/60=0.2>>0.2  -> $0.2
+        """
+        if not text:
+            return text
+
+        # Esempio: $<<12/60=0.2>>0.2  -> $0.2
+        return re.sub(r"<<.*?>>", "", text)
 
     def __len__(self) -> int:
         """ Return number of examples """

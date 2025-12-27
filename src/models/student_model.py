@@ -87,8 +87,8 @@ class StudentModel:
     def format_target(self, reasoning: str | None, answer: str) -> str:
         """
         Standard target:
-        - reasoning (opzionale)
-        - riga finale parsabile: 'Final answer: <answer>'
+        - reasoning (optional) prefixed by 'Reasoning:'
+        - parsable final row: 'Final answer: <answer>'
         """
         ans = str(answer).strip()
         if reasoning and reasoning.strip():
