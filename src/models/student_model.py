@@ -52,7 +52,7 @@ class StudentModel:
         # the model is a sequence-to-sequence model that generates text based on input sequences
         # utilize a pre-trained model from HuggingFace
         self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model_name, 
-                                                        torch_dtype=torch.float16,
+                                                        dtype=torch.float16,
                                                         device_map="auto", 
                                                         max_memory={0: "40GiB", "cpu": "64GiB"})
 
@@ -190,7 +190,6 @@ class StudentModel:
         per_device_eval_batch_size: int = 8,
         gradient_accumulation_steps: int = 8,
         gradient_checkpointing: bool = True,
-        optim="paged_adamw_8bit",
         num_train_epochs: float = 1.0,
         weight_decay: float = 0.01,
         warmup_ratio: float = 0.03,
@@ -222,7 +221,7 @@ class StudentModel:
             eval_strategy="steps" if eval_dataset is not None else "no", # evaluate every N steps if eval dataset is provided
             eval_steps=eval_steps if eval_dataset is not None else None, # evaluation frequency
             
-            optimizer=optim, # optimizer type
+            
             gradient_checkpointing=gradient_checkpointing, # enable gradient checkpointing to save memory
             dataloader_pin_memory=False,  # avoid potential issues on some systems
 
