@@ -30,7 +30,7 @@ class StudentModelConfig:
 
     # Model hyperparameters
     max_source_length: int = 512
-    max_target_length: int = 768
+    max_target_length: int = 256
     
     # Prompt templates (customize as needed)
     input_prefix: str = "Solve the problem:\n"
@@ -193,8 +193,9 @@ class StudentModel:
         logging_steps: int = 50,
         eval_steps: int = 200,
         save_steps: int = 200,
-        predict_with_generate: bool = True,
-        fp16: bool = False,
+        predict_with_generate: bool = False,
+        fp16: bool = True,
+        bf16: bool = False,
         seed: int = 42,
     ) -> Seq2SeqTrainer:
         # Train the model using HuggingFace's Seq2SeqTrainer
@@ -215,17 +216,25 @@ class StudentModel:
             logging_steps=logging_steps, # log training info every N steps
             eval_strategy="steps" if eval_dataset is not None else "no", # evaluate every N steps if eval dataset is provided
             eval_steps=eval_steps if eval_dataset is not None else None, # evaluation frequency
+            
+            # DISK CONTROL
             save_strategy="steps", # save model checkpoints every N steps
             save_steps=save_steps, # checkpoint saving frequency
-            predict_with_generate=predict_with_generate, # use generate() during evaluation
-            fp16=fp16 and torch.cuda.is_available(), # use mixed precision if available and requested
+            save_total_limit=1, #  limit total number of checkpoints to save
+            load_best_model_at_end=True if eval_dataset is not None else False, # load best model at end of training
+            
             seed=seed, # random seed for reproducibility
             report_to=[],  # keep notebooks clean by default
-            load_best_model_at_end=True,
             metric_for_best_model="exact_match",
             greater_is_better=True,
             label_smoothing_factor=label_smoothing_factor,
             gradient_accumulation_steps=gradient_accumulation_steps,
+            
+
+            # VRAM CONTROL
+            fp16=fp16 and torch.cuda.is_available(),
+            bf16=bf16 and torch.cuda.is_available(),  # se supportato dalla GPU
+            predict_with_generate=predict_with_generate,
         )
 
         # Data collator for seq2seq
