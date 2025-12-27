@@ -20,9 +20,9 @@ from transformers import (
     Seq2SeqTrainingArguments,
 )
 from functools import partial
-from src.text.cleaning import clean_reasoning
-from src.text.answer_parsing import extract_final_answer
-from src.metrics.gsm8k_metrics import compute_gsm8k_metrics, exact_match
+from text.cleaning import clean_reasoning
+from text.answer_parsing import extract_final_answer
+from metrics.gsm8k_metrics import compute_gsm8k_metrics, exact_match
 
 @dataclass
 class StudentModelConfig:

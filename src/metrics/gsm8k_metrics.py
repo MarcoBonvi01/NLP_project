@@ -1,5 +1,5 @@
-from src.text.answer_parsing import extract_final_answer
-from src.text.numeric import normalize_number
+from text.answer_parsing import extract_final_answer
+from text.numeric import normalize_number
 from typing import Optional
 
 def exact_match(pred_text: str, gold_answer: str) -> bool:

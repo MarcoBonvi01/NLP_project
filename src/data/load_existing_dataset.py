@@ -4,7 +4,7 @@ from pathlib import Path
 from dataclasses import  asdict
 import statistics
 import argparse
-from src.data.gsm8k_types import GSM8KExample 
+from data.gsm8k_types import GSM8KExample 
 
 class GSM8KDatasetProcessor:
     def __init__(self, base_path: str = "gsm8k-distillation/data/raw"):

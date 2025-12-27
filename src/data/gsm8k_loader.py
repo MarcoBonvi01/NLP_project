@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from dataclasses import dataclass, asdict
 import re
-from src.text.cleaning import clean_reasoning
-from src.text.numeric import normalize_number
-from src.data.gsm8k_types import GSM8KExample 
+from text.cleaning import clean_reasoning
+from text.numeric import normalize_number
+from data.gsm8k_types import GSM8KExample 
 
 class GSM8KDatasetLoader:
 

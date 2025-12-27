@@ -1,5 +1,5 @@
 import re
-from src.text.numeric import normalize_number
+from text.numeric import normalize_number
 
 def extract_final_answer(text: str) -> str:
     if not text:
