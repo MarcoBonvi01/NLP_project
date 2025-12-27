@@ -194,7 +194,7 @@ class StudentModel:
         logging_steps: int = 50,
         eval_steps: int = 200,
         save_steps: int = 200,
-        predict_with_generate: bool = True,
+        predict_with_generate: bool = False,
         fp16: bool = True,
         bf16: bool = False,
         seed: int = 42,
@@ -250,7 +250,7 @@ class StudentModel:
             train_dataset=train_dataset, # training dataset
             eval_dataset=eval_dataset, # evaluation dataset
             data_collator=data_collator, # data collator for batching
-            tokenizer=self.tokenizer, # tokenizer for decoding during evaluation
+            processing_class=self.tokenizer, # tokenizer for decoding during evaluation
             compute_metrics=partial(compute_gsm8k_metrics, tokenizer=self.tokenizer)
         )
 
