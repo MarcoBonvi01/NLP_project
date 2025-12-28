@@ -5,6 +5,7 @@ from dataclasses import  asdict
 import statistics
 import argparse
 from data.gsm8k_types import GSM8KExample 
+from data.gsm8k_types import Complexity
 
 class GSM8KDatasetProcessor:
     def __init__(self, base_path: str = "gsm8k-distillation/data/raw"):
@@ -43,8 +44,8 @@ class GSM8KDatasetProcessor:
                     answer=answer,
                     split=split_name,
                     index=index,
-                    difficulty=item['difficulty'],
-                    complexity=item['complexity']
+                    difficulty="unknown",
+                    complexity= Complexity(ops=0, nums=0)
                 ))
 
                 index += 1
