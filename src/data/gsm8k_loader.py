@@ -7,6 +7,7 @@ import re
 from text.cleaning import clean_reasoning
 from text.numeric import normalize_number
 from data.gsm8k_types import GSM8KExample 
+from text.difficulty_score import compute_complexity, tag_difficulty
 
 class GSM8KDatasetLoader:
 
@@ -80,13 +81,18 @@ class GSM8KDatasetLoader:
             q = normalize_number(q)
             r = normalize_number(r)
             a = normalize_number(a)
+
+            complexity = compute_complexity(q, r)
+            difficulty = tag_difficulty(complexity)
             
             return GSM8KExample(
                 question=q,
                 reasoning=r,
                 answer=a,
                 split=str(split),
-                index=index
+                index=index,
+                difficulty=difficulty,
+                complexity=complexity
             )
         
         except Exception as e:
@@ -100,27 +106,14 @@ class GSM8KDatasetLoader:
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        payload = []
-        for ex in examples:
-            d = asdict(ex)
-
-            if "reasoning" in d and isinstance(d["reasoning"], str):
-                d["reasoning"] = clean_reasoning(d["reasoning"])
-
-            for k in ("question", "reasoning", "answer"):
-                    if isinstance(d.get(k), str):
-                        d[k] = normalize_number(d[k])
-
-            payload.append(d)
+        payload = [asdict(ex) for ex in examples]
         
-        with open(output_file, 'w') as f:
-            json.dump(payload, f, indent=2)
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
         
         print(f"Saved to {output_path}")
     
     
-    
-
     def __len__(self) -> int:
         """ Return number of examples """
         return len(self.examples)

@@ -186,8 +186,6 @@ class StudentModel:
         learning_rate: float = 5e-5,
         per_device_train_batch_size: int = 8,
         per_device_eval_batch_size: int = 8,
-        gradient_accumulation_steps: int = 8,
-        gradient_checkpointing: bool = True,
         num_train_epochs: float = 1.0,
         weight_decay: float = 0.01,
         warmup_ratio: float = 0.03,
@@ -196,15 +194,22 @@ class StudentModel:
         eval_steps: int = 200,
         save_steps: int = 200,
         predict_with_generate: bool = True,
-        fp16: bool = True,
+        fp16: bool = False,
         bf16: bool = False,
         seed: int = 42,
+        resume_from_checkpoint: Optional[Union[str, Path]] = None,
     ) -> Seq2SeqTrainer:
         # Train the model using HuggingFace's Seq2SeqTrainer
         # Set Seq2SeqTrainingArguments + DataCollatorForSeq2Seq + Seq2SeqTrainer and then launch training by trainer.train()
 
         # Prepare output directory
         output_dir = str(output_dir)
+
+        do_eval = eval_dataset is not None
+
+        # Se vuoi best model, tieni save_steps allineato a eval_steps (consiglio: uguale)
+        if do_eval:
+            save_steps = save_steps or eval_steps
 
         # Training arguments
         args = Seq2SeqTrainingArguments(
@@ -216,10 +221,8 @@ class StudentModel:
             weight_decay=weight_decay, # weight decay for optimizer
             warmup_ratio=warmup_ratio, # warmup ratio for learning rate scheduler
             logging_steps=logging_steps, # log training info every N steps
-            eval_strategy="steps" if eval_dataset is not None else "no", # evaluate every N steps if eval dataset is provided
-            eval_steps=eval_steps if eval_dataset is not None else None, # evaluation frequency
-            
-            gradient_checkpointing=gradient_checkpointing, # enable gradient checkpointing to save memory
+            evaluation_strategy="steps" if do_eval else "no",
+            eval_steps=eval_steps if do_eval else None,
             
             # DISK CONTROL
             save_strategy="steps", # save model checkpoints every N steps
@@ -228,17 +231,20 @@ class StudentModel:
             load_best_model_at_end=True if eval_dataset is not None else False, # load best model at end of training
             
             seed=seed, # random seed for reproducibility
-            report_to=[],  # keep notebooks clean by default
+            report_to="none",  # keep notebooks clean by default
             metric_for_best_model="exact_match",
             greater_is_better=True,
             label_smoothing_factor=label_smoothing_factor,
-            gradient_accumulation_steps=gradient_accumulation_steps,
             
 
             # VRAM CONTROL
             fp16=fp16 and torch.cuda.is_available(), # enable fp16 if supported by GPU
             bf16=bf16 and torch.cuda.is_available(),  # enable bf16 if supported by GPU
             predict_with_generate=predict_with_generate, # enable generation during evaluation
+
+            # OPTIMIZATIONS
+            generation_max_length=64,
+            generation_num_beams=1,
         )
 
         # Data collator for seq2seq
@@ -253,10 +259,14 @@ class StudentModel:
             data_collator=data_collator, # data collator for batching
             processing_class=self.tokenizer, # tokenizer for decoding during evaluation
             compute_metrics=partial(compute_gsm8k_metrics, tokenizer=self.tokenizer)
+
         )
 
+
         # Start training
-        trainer.train()
+        trainer.train(
+            resume_from_checkpoint=str(resume_from_checkpoint) if resume_from_checkpoint is not None else None
+        )
 
         # Return trainer object
         return trainer
