@@ -221,7 +221,7 @@ class StudentModel:
             weight_decay=weight_decay, # weight decay for optimizer
             warmup_ratio=warmup_ratio, # warmup ratio for learning rate scheduler
             logging_steps=logging_steps, # log training info every N steps
-            evaluation_strategy="steps" if do_eval else "no",
+            eval_strategy="steps" if do_eval else "no",
             eval_steps=eval_steps if do_eval else None,
             
             # DISK CONTROL
