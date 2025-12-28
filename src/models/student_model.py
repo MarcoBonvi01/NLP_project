@@ -183,7 +183,7 @@ class StudentModel:
         output_dir: Union[str, Path] = "outputs/student_model",
         *,
         learning_rate: float = 5e-5,
-        per_device_train_batch_size: int = 2,
+        per_device_train_batch_size: int = 8,
         per_device_eval_batch_size: int = 8,
         gradient_accumulation_steps: int = 8,
         gradient_checkpointing: bool = True,
