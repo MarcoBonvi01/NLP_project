@@ -33,9 +33,10 @@ class StudentModelConfig:
     max_target_length: int = 256
     
     # Prompt templates (customize as needed)
-    input_prefix: str = "Solve the problem:\n"
+    input_prefix: str = "Solve the math word problem step by step.\n" \
+                        "Problem:\n"
 
-    # For answer-only training, we format target as: "Answer: <num>"
+    # For answer-only training, we format target as: "Final answer: <num>"
     answer_prefix: str = "Final answer: "
 
     # For CoT distillation, we format target as:
@@ -194,7 +195,7 @@ class StudentModel:
         logging_steps: int = 50,
         eval_steps: int = 200,
         save_steps: int = 200,
-        predict_with_generate: bool = False,
+        predict_with_generate: bool = True,
         fp16: bool = True,
         bf16: bool = False,
         seed: int = 42,
