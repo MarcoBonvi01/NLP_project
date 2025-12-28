@@ -25,9 +25,8 @@ class GSM8KDatasetProcessor:
             examples = []
 
             for item in dataset:
-                question = item['question']
                 full_answer = item['answer']
-                
+                                
                 # Parse the answer field: "reasoning #### number"
                 if '####' in full_answer:
                     reasoning_part, answer_part = full_answer.split('####')
@@ -39,11 +38,13 @@ class GSM8KDatasetProcessor:
                     answer = ""
                 
                 examples.append(GSM8KExample(
-                    question=question,
+                    question=item['question'],
                     reasoning=reasoning,
                     answer=answer,
                     split=split_name,
-                    index=index
+                    index=index,
+                    difficulty=item['difficulty'],
+                    complexity=item['complexity']
                 ))
 
                 index += 1
