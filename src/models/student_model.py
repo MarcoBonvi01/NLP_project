@@ -211,6 +211,17 @@ class StudentModel:
         if do_eval:
             save_steps = save_steps or eval_steps
 
+
+        # Metrics
+        compute_metrics_fn = None
+        metric_for_best = "eval_loss"
+        greater_is_better = False
+
+        if predict_with_generate:
+            compute_metrics_fn = partial(compute_gsm8k_metrics, tokenizer=self.tokenizer)
+            metric_for_best = "exact_match"
+            greater_is_better = True
+
         # Training arguments
         args = Seq2SeqTrainingArguments(
             output_dir=output_dir, # where to save model checkpoints and logs
@@ -232,11 +243,10 @@ class StudentModel:
             
             seed=seed, # random seed for reproducibility
             report_to="none",  # keep notebooks clean by default
-            metric_for_best_model="exact_match",
-            greater_is_better=True,
+            metric_for_best_model=metric_for_best,
+            greater_is_better=greater_is_better,
             label_smoothing_factor=label_smoothing_factor,
             
-
             # VRAM CONTROL
             fp16=fp16 and torch.cuda.is_available(), # enable fp16 if supported by GPU
             bf16=bf16 and torch.cuda.is_available(),  # enable bf16 if supported by GPU
@@ -258,7 +268,7 @@ class StudentModel:
             eval_dataset=eval_dataset, # evaluation dataset
             data_collator=data_collator, # data collator for batching
             processing_class=self.tokenizer, # tokenizer for decoding during evaluation
-            compute_metrics=partial(compute_gsm8k_metrics, tokenizer=self.tokenizer)
+            compute_metrics=compute_metrics_fn, # metrics computation function
 
         )
 
