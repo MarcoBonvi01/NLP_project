@@ -277,6 +277,9 @@ class StudentModel:
             resume_from_checkpoint=str(resume_from_checkpoint) if resume_from_checkpoint is not None else None
         )
 
+        trainer.save_model(output_dir)                # save weights/config
+        self.tokenizer.save_pretrained(output_dir)    # save tokenizer
+
         # Return trainer object
         return trainer
 
