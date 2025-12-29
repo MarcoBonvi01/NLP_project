@@ -150,12 +150,11 @@ class StudentModel:
             )
 
             # Tokenize targets
-            with self.tokenizer.as_target_tokenizer():
-                labels = self.tokenizer(
-                    targets,
-                    max_length=self.config.max_target_length,
-                    truncation=True,
-                )
+            labels = self.tokenizer(
+                text_target=targets,
+                max_length=self.config.max_target_length,
+                truncation=True,
+            )
 
             # Replace pad token id's in labels by -100 to ignore in loss computation
             label_ids = labels["input_ids"]
@@ -195,7 +194,7 @@ class StudentModel:
         save_steps: int = 200,
         predict_with_generate: bool = True,
         fp16: bool = False,
-        bf16: bool = False,
+        bf16: bool = True,
         seed: int = 42,
         resume_from_checkpoint: Optional[Union[str, Path]] = None,
     ) -> Seq2SeqTrainer:
