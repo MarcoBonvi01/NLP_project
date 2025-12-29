@@ -325,15 +325,15 @@ class StudentModel:
         generations = self.generate(questions, max_new_tokens=max_new_tokens, num_beams=num_beams)
 
         # Extract final numbers from predictions
-        pred = [extract_final_answer(g) for g in generations]
+        pred_nums = [extract_final_answer(g) for g in generations]
 
         # Compute exact match
-        em = sum(int(exact_match(pred, ga)) for pred, ga in zip(pred, gold)) / max(1, len(gold))
+        em = sum(int(exact_match(p, ga)) for p, ga in zip(pred_nums, gold)) / max(1, len(gold))
         
         return {
             "n": len(raw_examples),
             "exact_match": em,
-            "pred_examples": list(zip(questions[:5], generations[:5], pred[:5], gold[:5]))
+            "pred_examples": list(zip(questions[:5], generations[:5], pred_nums[:5], gold[:5]))
         }
 
     # ----------------------------
