@@ -233,16 +233,30 @@ class StudentModel:
 
         # Data collator for seq2seq
         def _collate(features):
-            # Pad variable-length inputs and labels for causal LM SFT
+            # 1) Pad solo gli input (input_ids/attention_mask)
+            #    (tokenizer.pad gestisce bene questi)
+            inputs = [{"input_ids": f["input_ids"], "attention_mask": f.get("attention_mask")} for f in features]
             batch = self.tokenizer.pad(
-                features,
+                inputs,
                 padding=True,
                 return_tensors="pt",
             )
-            if "labels" in batch:
-                batch["labels"] = batch["labels"].masked_fill(
-                    batch["labels"] == self.tokenizer.pad_token_id, -100
-                )
+
+            # 2) Pad labels MANUALMENTE alla stessa lunghezza di input_ids
+            if "labels" in features[0]:
+                max_len = batch["input_ids"].shape[1]
+                labels = torch.full((len(features), max_len), -100, dtype=torch.long)
+
+                for i, f in enumerate(features):
+                    lab = f["labels"]
+                    # lab deve essere lista di int
+                    if isinstance(lab, torch.Tensor):
+                        lab = lab.tolist()
+                    lab_len = min(len(lab), max_len)
+                    labels[i, :lab_len] = torch.tensor(lab[:lab_len], dtype=torch.long)
+
+                batch["labels"] = labels
+
             return batch
 
         data_collator = _collate
