@@ -29,12 +29,12 @@ class StudentModelConfig:
     model_name: str = "google/flan-t5-base"
 
     # Model hyperparameters
-    max_source_length: int = 512
-    max_target_length: int = 256
+    max_source_length: int = 768
+    max_target_length: int = 512
     
     # Prompt templates (customize as needed)
     input_prefix: str = "Solve the math word problem step by step.\n" \
-                        "Problem:\n"
+                        "The problem is:\n"
 
     # For answer-only training, we format target as: "Final answer: <num>"
     answer_prefix: str = "Final answer: "
