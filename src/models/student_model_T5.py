@@ -1,8 +1,3 @@
-"""
-StudentModel: small seq2seq model wrapper for GSM8K distillation. 
-
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
