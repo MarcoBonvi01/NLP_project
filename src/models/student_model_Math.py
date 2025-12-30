@@ -193,7 +193,6 @@ class StudentModel:
         num_train_epochs: float = 1.0,
         
         
-        evaluation_strategy: str = "steps",
         save_strategy: str = "steps",
         save_total_limit: int = 3,
         report_to: Union[str, List[str]] = "none",
@@ -223,7 +222,6 @@ class StudentModel:
             learning_rate=learning_rate,
             num_train_epochs=num_train_epochs,
             logging_steps=logging_steps,
-            eval_stategy=evaluation_strategy if do_eval else "no",
             eval_steps=eval_steps if do_eval else None,
             save_steps=save_steps,
             save_strategy=save_strategy,
