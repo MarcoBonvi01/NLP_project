@@ -1,32 +1,46 @@
 import re
-from text.numeric import normalize_number
 
 def extract_final_answer(text: str) -> str:
+    """
+    Extract final numeric answer from generated text.
+    
+    Handles multiple formats:
+    - "Final answer: 42"
+    - "#### 42"
+    - "The answer is 42"
+    - Just "42" at the end
+    
+    Returns the numeric answer as a string, or empty string if not found.
+    """
     if not text:
         return ""
-
-    text = normalize_number(text)
-
-    # 1) GSM8K delimiter
-    if "####" in text:
-        tail = text.split("####")[-1]
-        m = re.search(r"-?\d+(?:\.\d+)?", tail)
-        return m.group(0) if m else ""
-
-    # 2) Common model formats (highest priority)
-    # Handles: "Final answer: 123", "Final Answer - 123", "Answer: 123", "The answer is 123"
-    patterns = [
-        r"(?:final\s*answer)\s*[:\-]\s*(-?\d+(?:\.\d+)?)",
-        r"(?:answer)\s*[:\-]\s*(-?\d+(?:\.\d+)?)",
-        r"(?:the\s*answer\s*is)\s*[:\-]?\s*(-?\d+(?:\.\d+)?)",
-    ]
     
-    for pat in patterns:
-        m = re.search(pat, text, flags=re.IGNORECASE)
-        if m:
-            return m.group(1).strip()
-
-    # 3) fallback: last number in text
-    nums = re.findall(r"-?\d+(?:\.\d+)?", text)
-    return nums[-1] if nums else ""
-
+    text = str(text).strip()
+    
+    # Pattern 1: "Final answer: X" or "Final Answer: X"
+    match = re.search(r'[Ff]inal [Aa]nswer\s*:\s*(-?\d+\.?\d*)', text)
+    if match:
+        return match.group(1)
+    
+    # Pattern 2: "#### X" (GSM8K standard format)
+    match = re.search(r'####\s*(-?\d+\.?\d*)', text)
+    if match:
+        return match.group(1)
+    
+    # Pattern 3: "The answer is X"
+    match = re.search(r'[Tt]he answer is\s*(-?\d+\.?\d*)', text)
+    if match:
+        return match.group(1)
+    
+    # Pattern 4: "Answer: X"
+    match = re.search(r'[Aa]nswer\s*:\s*(-?\d+\.?\d*)', text)
+    if match:
+        return match.group(1)
+    
+    # Fallback: Find the last number in the text
+    # This handles cases where the model just outputs the number
+    numbers = re.findall(r'-?\d+\.?\d*', text)
+    if numbers:
+        return numbers[-1]
+    
+    return ""

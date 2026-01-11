@@ -26,7 +26,7 @@ def compute_gsm8k_metrics(eval_pred, tokenizer) -> Dict[str, Any]:
     if isinstance(preds, tuple):
         preds = preds[0]
     
-    # ===== FIX: Clamp token IDs a range valido =====
+    
     vocab_size = tokenizer.vocab_size
     
     # Converti a numpy se necessario
