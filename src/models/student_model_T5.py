@@ -24,30 +24,35 @@ class StudentModelConfig:
     model_name: str = "google/flan-t5-base"
 
     # Model hyperparameters
-    max_source_length: int = 768
-    max_target_length: int = 512
+    max_source_length: int = 512
+    max_target_length: int = 256
     
     # Prompt templates (customize as needed)
-    input_prefix: str = "Solve the math word problem step by step.\n" \
-                        "The problem is:\n"
+    input_prefix: str = "Question: "
 
     # For answer-only training, we format target as: "Final answer: <num>"
     answer_prefix: str = "Final answer: "
 
     # For CoT distillation, we format target as:
-    reasoning_prefix: str = "Reasoning:\n"
+    reasoning_prefix: str = ""
 
 class StudentModel:
     def __init__(self, config: Optional[StudentModelConfig] = None, device: Optional[str] = None):
         self.config = config or StudentModelConfig()
+
         # Load the tokenizer
         # the objective of the tokernizer is to convert text into tokens that the model can understand
-        self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, legacy=False,
+                                                            model_max_length=self.config.max_source_length)
+
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
 
         # Load the model
         # the model is a sequence-to-sequence model that generates text based on input sequences
         # utilize a pre-trained model from HuggingFace
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model_name)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model_name, 
+                                                           )
 
         # Set device
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -88,6 +93,7 @@ class StudentModel:
         - parsable final row: 'Final answer: <answer>'
         """
         ans = str(answer).strip()
+
         if reasoning and reasoning.strip():
             r = reasoning.strip()
             return f"{self.config.reasoning_prefix}{r}\n\n{self.config.answer_prefix}{ans}"
@@ -141,6 +147,7 @@ class StudentModel:
             model_inputs = self.tokenizer(
                 inputs,
                 max_length=self.config.max_source_length,
+                padding=False,
                 truncation=True,
             )
 
@@ -149,15 +156,16 @@ class StudentModel:
                 text_target=targets,
                 max_length=self.config.max_target_length,
                 truncation=True,
+                padding=False,
             )
 
             # Replace pad token id's in labels by -100 to ignore in loss computation
-            label_ids = labels["input_ids"]
-            pad_id = self.tokenizer.pad_token_id
-            label_ids = [[(t if t != pad_id else -100) for t in seq] for seq in label_ids]
+            #label_ids = labels["input_ids"]
+            #pad_id = self.tokenizer.pad_token_id
+            #label_ids = [[(t if t != pad_id else -100) for t in seq] for seq in label_ids]
             
             # Add labels to model inputs
-            model_inputs["labels"] = label_ids
+            model_inputs["labels"] = labels["input_ids"]
 
             # Return model inputs
             return model_inputs
@@ -247,12 +255,15 @@ class StudentModel:
             predict_with_generate=predict_with_generate, # enable generation during evaluation
 
             # OPTIMIZATIONS
-            generation_max_length=64,
+            generation_max_length=128,
             generation_num_beams=1,
         )
 
         # Data collator for seq2seq
-        data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model)
+        data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, 
+                                               model=self.model, 
+                                               padding=True,
+                                               label_pad_token_id=-100)
 
         # Seq2SeqTrainer
         trainer = Seq2SeqTrainer(
@@ -299,8 +310,9 @@ class StudentModel:
         # Generate outputs
         out = self.model.generate(
             **enc,
-            max_new_tokens=max_new_tokens,
+            max_length=max_new_tokens + enc['input_ids'].shape[1],
             num_beams=num_beams,
+            early_stopping=True,
         )
 
         # Decode outputs
