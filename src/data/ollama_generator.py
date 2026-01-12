@@ -8,18 +8,7 @@ class OllamaPlanGenerator:
         self.model = model
         self.base_url = base_url
         
-        self.system_prompt = """You are a math planning assistant.
-Create:
-1) PLAN: logical steps (no calculations)
-2) EXPRESSION: final formula with numbers
-
-Format:
-PLAN:
-- step 1
-- step 2
-
-EXPRESSION:
-formula"""
+        self.system_prompt = """You are a math planning assistant. Do NOT compute numbers. Return: 1) A step-by-step plan in natural language or pseudo-code 2) A final mathematical expression using only numbers and operators  Format exactly as:  PLAN: - ... - ...  EXPRESSION: ..."""
 
     def generate_plan_and_expression(self, question: str, reasoning: str = "") -> Dict[str, str]:
         
