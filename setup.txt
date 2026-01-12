@@ -13,6 +13,17 @@ pip install -U --no-cache-dir --force-reinstall \
 
 
 
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Scarica modello (una sola volta)
+ollama pull llama3.2:3b
+
+# Usa lo script
+python augmentation/ollama_plan_generator.py \
+  --input gsm8k-distillation/data/raw/gsm8k_cot_train.json \
+  --output gsm8k-distillation/data/augmented/gsm8k_train_augmented.json \
+  --model llama3.2:3b
+  
 
 jupyter lab \
   --ip=0.0.0.0 --port=8888 --no-browser --allow-root \
