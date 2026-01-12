@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict
 
 class OllamaPlanGenerator:
-    def __init__(self, model: str = "llama3.2:3b", base_url: str = "http://localhost:11434"):
+    def __init__(self, model: str = "llama3.2:3b", base_url: str = "http://127.0.0.1:11434"):
         self.model = model
         self.base_url = base_url
         
